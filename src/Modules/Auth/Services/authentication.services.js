@@ -5,6 +5,7 @@ import { emitter } from "../../../Services/send-email.services.js";
 import jwt from 'jsonwebtoken';
 import { v4 as uuid } from 'uuid';
 import BlackListTokens from "../../../DB/models/blacklist-tokens.model.js";
+import { createToken, verifyToken } from "../../../Utils/tokens.utils.js";
 
 // ✅ Sign Up Service
 export const SignUpservices = async (req, res) => {
@@ -41,12 +42,7 @@ export const SignUpservices = async (req, res) => {
         const confirmEmailLink = `${req.protocol}://${req.headers.host}/auth/verify/${token}`
 
         // ✅ Send verification Email
-        emitter.emit('sendEmail', [
-            email,
-            'Verify Your Email',
-            { text: 'Verify Your Email', data: username, confirmEmailLink },
-            []
-        ]);
+        emitter.emit('sendEmail', [email, 'Verify Your Email', { text: `Verify Your Email`, data: username, confirmEmailLink }]);
 
         // ✅ Create a new user
         const newUser = await User.create({ username, email, password: hashedPassword, phone: encryptedPhone, age });
@@ -66,8 +62,7 @@ export const SignUpservices = async (req, res) => {
 export const VerifyEmailServices = async (req, res) => {
     try {
         const { token } = req.params;
-        const decodedData = jwt.verify(token, process.env.JWT_SECRET_KEY);
-        // console.log(decodedData);
+        const decodedData = verifyToken({ token, secretKey: process.env.JWT_SECRET_KEY });
         const user = await User.findOneAndUpdate({ email: decodedData.email }, { isEmailVerified: true }, { new: true });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -98,8 +93,8 @@ export const LoginServices = async (req, res) => {
         }
 
         // ✅ Generate JWT
-        const accesstoken = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_SECRET_LOGIN_KEY, { expiresIn: '2h', jwtid: uuid() });
-        const refreshtoken = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_SECRET_REFRESH_KEY, { expiresIn: '2d', jwtid: uuid() });
+        const accesstoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY , options: { expiresIn: '2h', jwtid: uuid() } });
+        const refreshtoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_REFRESH_KEY , options: { expiresIn: '2d', jwtid: uuid() } });
 
         return res.status(200).json({ message: 'Logged in successfully', isPasswordCorrect, accesstoken, refreshtoken });
 
@@ -109,12 +104,12 @@ export const LoginServices = async (req, res) => {
         return res.status(500).json({ message: 'Internal Server Error', error });
     }
 }
-
+// ✅ Refresh Token Service
 export const RefreshTokenServices = async (req, res) => {
     try {
         const { refreshtoken } = req.headers;
-        const decodedData = jwt.verify(refreshtoken, process.env.JWT_SECRET_REFRESH_KEY);
-        const accesstoken = jwt.sign({ _id: decodedData._id, email: decodedData.email }, process.env.JWT_SECRET_LOGIN_KEY, { expiresIn: '2h' });
+        const decodedData = verifyToken({ token: refreshtoken, secretKey: process.env.JWT_SECRET_REFRESH_KEY });
+        const accesstoken = createToken({ payload: { _id: decodedData._id, email: decodedData.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY , options: { expiresIn: '2h' } });
         res.status(200).json({ message: 'Token refreshed successfully', accesstoken });
     }
     catch (error) {
@@ -122,15 +117,14 @@ export const RefreshTokenServices = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error', error });
     }
 }
-
+// ✅ Logout Service
 export const LogoutServices = async (req, res) => {
     try {
         const { accesstoken, refreshtoken } = req.headers;
-        const decodedData = jwt.verify(accesstoken, process.env.JWT_SECRET_LOGIN_KEY);
-        const decodedRefreshToken = jwt.verify(refreshtoken, process.env.JWT_SECRET_REFRESH_KEY);
+        const decodedData = verifyToken({ token: accesstoken, secretKey: process.env.JWT_SECRET_LOGIN_KEY });
+        const decodedRefreshToken = verifyToken({ token: refreshtoken, secretKey: process.env.JWT_SECRET_REFRESH_KEY });
 
-        const revokeToken = await BlackListTokens.insertMany(
-            [
+        const revokeToken = [
                 {
                     tokenId: decodedData.jti,
                     expiresAt: decodedData.exp
@@ -140,8 +134,53 @@ export const LogoutServices = async (req, res) => {
                     expiresAt: decodedRefreshToken.exp
                 }
             ]
-        );
+        await BlackListTokens.insertMany(revokeToken);
         res.status(200).json({ message: 'Logged out successfully' });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Internal Server Error', error });
+    }
+}
+// ✅ Forget Password Service
+export const ForgetPasswordServices = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'This email is not registered' });
+        }
+        const otp = Math.floor(1000 + Math.random() * 9000);
+        // ✅ Send otp Email
+        emitter.emit('sendEmail', [user.email, 'Reset Password', { text: `Your OTP code is ${otp}` }]);
+        // ✅ Hash the otp
+        const hashedOtp = hashSync(otp.toString(), +process.env.SALT_ROUNDS);
+        // ✅ Update the db
+        user.otp = hashedOtp;
+        await user.save();
+        res.status(200).json({ message: 'Otp sent successfully' });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Internal Server Error', error });
+    }
+}
+// ✅ Reset Password Service
+export const resetPasswordServices = async (req, res) => {
+    try {
+        const { email, otp, password, confirmpassword } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'This email is not registered' });
+        }
+        const isOtpValid = compareSync(otp.toString(), user.otp);
+        if (!isOtpValid) {
+            return res.status(400).json({ message: 'Invalid OTP' });
+        }
+        const hashedPassword = hashSync(password, +process.env.SALT_ROUNDS);
+        await user.updateOne({ password: hashedPassword, $unset: { otp: "" } });
+
+        res.status(200).json({ message: 'Password reset successfully' });
     }
     catch (error) {
         console.log(error);

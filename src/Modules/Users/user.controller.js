@@ -1,10 +1,11 @@
 import {Router} from "express";
-import * as profileServices from "./Services/profile.services.js";
+import * as UserServices from "./Services/profile.services.js";
+import { authenticationMiddleware } from "../../Middleware/authentication.middleware.js";
 
 // ✅ Get User Profile Route
-const userController = Router();
+const userController = Router(); 
 
-// ✅ Get User Profile Route
-userController.get("/profile", profileServices.profileData);
+userController.get("/profile", authenticationMiddleware(), UserServices.profileServices);
+userController.patch("/update-password", authenticationMiddleware(), UserServices.updatePasswordServices);
 
 export default userController;

@@ -17,7 +17,6 @@ async function bootstrap() {
         // ✅ Await Database Connection
         await database_connect();
 
-        
         // ✅ Routes Prefix
         app.use("/auth", authController);
         app.use("/user", userController);

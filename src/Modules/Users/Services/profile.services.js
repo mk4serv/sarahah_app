@@ -1,7 +1,7 @@
 import { compareSync, hashSync } from "bcrypt";
 import { BlacklistTokens, User } from "../../../DB/models/index.js";
-import { Decryption } from "../../../Utils/encryption.utils.js";
-
+import { createToken, Decryption, Encryption } from "../../../Utils/index.js";
+import { emitter } from "../../../Services/send-email.services.js";
 
 // ✅ Get User Profile Service
 export const profileServices = async (req, res) => {
@@ -26,8 +26,37 @@ export const profileServices = async (req, res) => {
 // ✅ Update Profile Service
 export const updateProfileServices = async (req, res) => {
     try {
-        const { _id } = req.authUser;
-        const { name, phone } = req.body;
+        const { _id } = req.loggedInUser;
+        const { email, username, phone } = req.body;
+
+        const user = await User.findById(_id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (username) user.username = username;
+        if (phone) user.phone = await Encryption({ value: phone, secretKey: process.env.ENCRYPTION_SECRET_KEY });
+        if (email) {
+
+            // ✅ Check if email already exists
+            const isEmailExist = await User.findOne({ email });
+            if (isEmailExist) {
+                return res.status(409).json({ message: 'Email already exists' });
+            }
+            // ✅ Generate token
+            const token = createToken({ payload: {email }, secretKey: process.env.JWT_SECRET_KEY, option: { expiresIn: '2h' }});
+
+            // ✅ Confirm Email Link
+            const confirmEmailLink = `${req.protocol}://${req.headers.host}/auth/verify/${token}`
+
+            // ✅ Send verification Email
+            emitter.emit('sendEmail', [email, 'Verify New Email', { text: `Verify New Email`, data: username, confirmEmailLink }]);
+            user.email = email;
+            user.isEmailVerified = false;
+        }
+
+        await user.save();
+
+        res.status(200).json({ message: 'Profile updated successfully please verify your new email', user });
+
     } catch (error) {
         console.log(error);
         res.status(500).json({ message: 'Internal Server Error', error });
@@ -40,9 +69,9 @@ export const updatePasswordServices = async (req, res) => {
         const { _id } = req.loggedInUser;
         const { oldPassword, newPassword, confirmPassword } = req.body;
         const user = await User.findById(_id);
-        if(!user) return res.status(404).json({ message: 'User not found' });
+        if (!user) return res.status(404).json({ message: 'User not found' });
         const isPasswordValid = compareSync(oldPassword, user.password);
-        if(!isPasswordValid) return res.status(400).json({ message: 'Invalid password' });
+        if (!isPasswordValid) return res.status(400).json({ message: 'Invalid password' });
 
         // ✅ hash the new password
         const hashedPassword = hashSync(newPassword, +process.env.SALT_ROUNDS);

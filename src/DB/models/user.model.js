@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { systemRoles } from '../../constants/constants.js';
 
 const userSchema = new mongoose.Schema({
     username: {
@@ -50,7 +51,8 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        default: 'user'
+        default: systemRoles.USER,
+        enum: Object.values(systemRoles)
     }
 }, { timestamps: true });
 

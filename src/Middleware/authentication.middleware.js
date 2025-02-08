@@ -35,3 +35,21 @@ export const authenticationMiddleware = () => {
 
     }
 }
+
+export const authorizationMiddleware = (allowedRoles) => {
+    return async (req, res, next) => {
+        try {
+            const { role: loggedInUserRole } = req.loggedInUser;
+
+            const isRoleAllowed = allowedRoles.includes(loggedInUserRole);
+
+            if (!isRoleAllowed) {
+                return res.status(403).json({ message: 'You are not authorized to access this resource' });
+            }
+            next();
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({ message: 'Something went wrong' });
+        }
+    }
+}

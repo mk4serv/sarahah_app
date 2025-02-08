@@ -35,8 +35,8 @@ export const SignUpservices = async (req, res) => {
         // ✅ Encrypt the phone number
         const encryptedPhone = Encryption({ value: phone, secretKey: process.env.ENCRYPTION_SECRET_KEY });
 
-        // ✅ Generate JWT
-        const token = jwt.sign({ email }, process.env.JWT_SECRET_KEY, { expiresIn: '2h' });
+        // ✅ Generate token
+        const token = createToken({ payload: { email }, secretKey: process.env.JWT_SECRET_KEY, option: { expiresIn: '2h' } });
 
         // ✅ Confirm Email Link
         const confirmEmailLink = `${req.protocol}://${req.headers.host}/auth/verify/${token}`
@@ -93,8 +93,8 @@ export const LoginServices = async (req, res) => {
         }
 
         // ✅ Generate JWT
-        const accesstoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY , options: { expiresIn: '2h', jwtid: uuid() } });
-        const refreshtoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_REFRESH_KEY , options: { expiresIn: '2d', jwtid: uuid() } });
+        const accesstoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY, options: { expiresIn: '2h', jwtid: uuid() } });
+        const refreshtoken = createToken({ payload: { _id: user._id, email: user.email }, secretKey: process.env.JWT_SECRET_REFRESH_KEY, options: { expiresIn: '2d', jwtid: uuid() } });
 
         return res.status(200).json({ message: 'Logged in successfully', isPasswordCorrect, accesstoken, refreshtoken });
 
@@ -109,7 +109,7 @@ export const RefreshTokenServices = async (req, res) => {
     try {
         const { refreshtoken } = req.headers;
         const decodedData = verifyToken({ token: refreshtoken, secretKey: process.env.JWT_SECRET_REFRESH_KEY });
-        const accesstoken = createToken({ payload: { _id: decodedData._id, email: decodedData.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY , options: { expiresIn: '2h' } });
+        const accesstoken = createToken({ payload: { _id: decodedData._id, email: decodedData.email }, secretKey: process.env.JWT_SECRET_LOGIN_KEY, options: { expiresIn: '2h' } });
         res.status(200).json({ message: 'Token refreshed successfully', accesstoken });
     }
     catch (error) {
@@ -125,15 +125,15 @@ export const LogoutServices = async (req, res) => {
         const decodedRefreshToken = verifyToken({ token: refreshtoken, secretKey: process.env.JWT_SECRET_REFRESH_KEY });
 
         const revokeToken = [
-                {
-                    tokenId: decodedData.jti,
-                    expiresAt: decodedData.exp
-                },
-                {
-                    tokenId: decodedRefreshToken.jti,
-                    expiresAt: decodedRefreshToken.exp
-                }
-            ]
+            {
+                tokenId: decodedData.jti,
+                expiresAt: decodedData.exp
+            },
+            {
+                tokenId: decodedRefreshToken.jti,
+                expiresAt: decodedRefreshToken.exp
+            }
+        ]
         await BlackListTokens.insertMany(revokeToken);
         res.status(200).json({ message: 'Logged out successfully' });
     }

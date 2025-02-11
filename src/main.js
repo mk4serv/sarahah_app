@@ -11,7 +11,7 @@ async function bootstrap() {
     const app = express();
     
     // ✅ Set default port and handle the listening process
-    const port = process.env.PORT || 3001;
+    const port = process.env.PORT || 3000;
     
     app.use(cors());
     app.use(express.json());

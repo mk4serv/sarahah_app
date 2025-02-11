@@ -8,7 +8,7 @@ const controllerHandler = (app) => {
     app.use("/user", controllers.userController);
     app.use("/message", controllers.messageController);
 
-    app.get("/", (req, res) => res.send("Hello from the root route"));
+    app.get("/", (req, res) => res.send("Hello from the Sarahah App!"));
 
     app.all("*", (req, res) => res.status(404).json({ message: "Route not found" }));
 

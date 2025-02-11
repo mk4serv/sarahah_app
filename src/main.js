@@ -1,28 +1,30 @@
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv'; // Load environment variables
 dotenv.config();
 import { database_connect } from './DB/connection.js';
 import controllerHandler from './Utils/router-handler.utils.js';
 
 async function bootstrap() {
+    
+    // ✅ Initialize Express app
+    const app = express();
+    
+    // ✅ Set default port and handle the listening process
+    const port = process.env.PORT || 3000;
+    
+    app.use(cors());
+    app.use(express.json());
 
-        // ✅ Initialize Express app
-        const app = express();
-        
-        // ✅ Set default port and handle the listening process
-        const port = process.env.PORT || 3000;
+    // ✅ Load Controllers
+    controllerHandler(app);
 
-        app.use(express.json());
+    // ✅ Await Database Connection
+    await database_connect();
 
-        // ✅ Load Controllers
-        controllerHandler(app);
-
-        // ✅ Await Database Connection
-        await database_connect();
-
-        const server = app.listen(port, () => {
-            console.log(`Server running on port ${port}`);
-        });
+    const server = app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+    });
 
 }
 

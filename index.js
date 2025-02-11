@@ -1,3 +1,6 @@
-import bootstrap  from './src/main.js';
+import bootstrap from './src/main.js';
 
-bootstrap();
+export default async function handler(req, res) {
+    const app = await bootstrap();
+    app(req, res);
+  }

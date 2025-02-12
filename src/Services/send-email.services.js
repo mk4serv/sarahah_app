@@ -32,7 +32,6 @@ export const SendEmailService = async (
         const info = await transporter.sendMail({
             from: `"No Reply" <${process.env.EMAIL_USERNAME}>`,
             to,
-            cc: 'khairyworks@gmail.com',
             subject,
             html: EmailTemplate({ message, subject }),
             attachments

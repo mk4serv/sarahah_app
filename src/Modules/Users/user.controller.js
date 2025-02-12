@@ -13,6 +13,6 @@ userController.use(authenticationMiddleware());
 userController.get("/profile",authorizationMiddleware([USER]), errorHandlerMiddleware (UserServices.profileServices));
 userController.patch("/update-password", errorHandlerMiddleware (UserServices.updatePasswordServices));
 userController.put("/update-profile", errorHandlerMiddleware (UserServices.updateProfileServices));
-userController.get("/list", authorizationMiddleware([ADMIN, USER, SUPER_ADMIN]), errorHandlerMiddleware (UserServices.profileServices));
+userController.get("/list", authorizationMiddleware([ADMIN, SUPER_ADMIN]), errorHandlerMiddleware (UserServices.profileServices));
 
 export default userController;
